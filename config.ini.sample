@@ -1,0 +1,13 @@
+[login]
+username = 
+password = 
+
+[jira-login]
+username = 
+password = 
+
+[server]
+url = https://currenttime.bouvet.no
+
+[jira]
+custom_field_id = 10410
