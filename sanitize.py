@@ -39,8 +39,15 @@ from collections import defaultdict
 from suds.client import Client
 import ConfigParser
 
-from ct.apis import SimpleAPI
+from ct.apis import BaseAPI
 
+
+config = ConfigParser.ConfigParser()
+user_cfg = os.path.expanduser('~/.sanitizer.cfg')
+default_cfg = os.path.join(
+        sys.prefix,
+        'share/ct-jira-sanitizer/config.ini.sample')
+config.read([default_cfg, user_cfg])
 
 def dates_in_month(year, month):
     _, n_days = calendar.monthrange(year, month)
@@ -48,14 +55,6 @@ def dates_in_month(year, month):
 
 
 def get_jira_activities():
-    config = ConfigParser.ConfigParser()
-    user_cfg = os.path.expanduser('~/.sanitizer.cfg')
-    default_cfg = os.path.join(
-        sys.prefix,
-        'share/ct-jira-sanitizer/config.ini.sample')
-
-    config.read([default_cfg, user_cfg])
-
     soap = Client('https://jira.bouvet.no/rpc/soap/jirasoapservice-v2?wsdl')
 
     custom_field_id = config.get("jira", "custom_field_id")
@@ -91,17 +90,19 @@ def get_jira_activities():
 
 
 def get_ct_activities(year, month):
-    ct = SimpleAPI()
+    ct = BaseAPI(config.get("server", "url"))
+    ct.login(config.get("login", "username"), config.get("login", "password"))
     ct_activities = defaultdict(lambda: defaultdict(lambda: 0))
-    for activity in ct.list_activities(args.year, args.month):
-        ctref = activity['project'].project_id
+    for activity in ct.get_month(args.year, args.month):
+        ctref, _, _ = activity.project_id.partition(",")
+	ctref = int(ctref)
         if not ctref in jira_activities:
             continue
 
-        day = activity['day']
-        hours = activity['hours']
+        date = activity.date
+        hours = activity.duration
 
-        ct_activities[ctref][day] += hours
+        ct_activities[ctref][date] += hours
     return ct_activities
 
 if __name__ == "__main__":
@@ -119,10 +120,11 @@ if __name__ == "__main__":
     ct_activities = get_ct_activities(args.year, args.month)
 
     ctrefs = set(ct_activities.keys() + jira_activities.keys())
+    print "Discrepency:   id,       date, jira,   ct"
     for ctref in ctrefs:
         for day in dates_in_month(args.year, args.month):
             ct_hours = ct_activities[ctref][day]
             jira_hours = jira_activities[ctref][day]
             if jira_hours != ct_hours:
-                print "Discrepency: %s, %s, %s, %s" % (
+                print "Discrepency: %s, %s, %04s, %04s" % (
                     ctref, day, jira_hours, ct_hours)
