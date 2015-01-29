@@ -7,7 +7,7 @@ username =
 password = 
 
 [server]
-url = https://currenttime.bouvet.no
+url = https://currenttime.example.com
 
 [jira]
 custom_field_id = 10410
